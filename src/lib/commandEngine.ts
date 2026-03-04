@@ -20,6 +20,18 @@ const makeResult = (command: string, response: string, action: string, status: C
   timestamp: Date.now(),
 });
 
+// Callbacks для интеграции с Web Worker таймерами
+let timerStartCallback: ((duration: number, label: string) => void) | null = null;
+let timerCancelAllCallback: (() => void) | null = null;
+
+export const setTimerCallbacks = (
+  onStart: (duration: number, label: string) => void,
+  onCancelAll: () => void
+) => {
+  timerStartCallback = onStart;
+  timerCancelAllCallback = onCancelAll;
+};
+
 const commands: CommandPattern[] = [
   {
     patterns: [/включи музыку/i, /играй музыку/i, /запусти музыку/i, /поставь музыку/i],
@@ -161,21 +173,50 @@ const commands: CommandPattern[] = [
     patterns: [/таймер (.+)/i, /поставь таймер/i, /засеки (.+)/i],
     action: "timer_set",
     handler: (cmd) => {
-      const match = cmd.match(/(\d+)\s*(минут|секунд|мин|сек)/i);
+      const match = cmd.match(/(\d+)\s*(минут|секунд|мин|сек|час)/i);
       if (match) {
         const value = parseInt(match[1]);
-        const isMinutes = /минут|мин/i.test(match[2]);
-        const ms = isMinutes ? value * 60000 : value * 1000;
-        const label = isMinutes ? `${value} мин.` : `${value} сек.`;
-        setTimeout(() => {
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("Ордо — Таймер", { body: `Таймер на ${label} завершён!` });
-          }
-          alert(`⏰ Таймер на ${label} завершён!`);
-        }, ms);
-        return makeResult(cmd, `Таймер установлен на ${label}`, "timer_set");
+        const unit = match[2].toLowerCase();
+        const isHours = /час/i.test(unit);
+        const isMinutes = /минут|мин/i.test(unit);
+        let ms: number;
+        let label: string;
+        if (isHours) {
+          ms = value * 3600000;
+          label = value + " ч.";
+        } else if (isMinutes) {
+          ms = value * 60000;
+          label = value + " мин.";
+        } else {
+          ms = value * 1000;
+          label = value + " сек.";
+        }
+
+        // Используем внешний обработчик таймера (Web Worker) если доступен
+        if (timerStartCallback) {
+          timerStartCallback(ms, label);
+        } else {
+          // Fallback на обычный setTimeout
+          setTimeout(() => {
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification("Ордо — Таймер", { body: "Таймер на " + label + " завершён!" });
+            }
+          }, ms);
+        }
+        return makeResult(cmd, "Таймер установлен на " + label + ". Работает в фоновом режиме", "timer_set");
       }
       return makeResult(cmd, "Скажите, на сколько минут или секунд поставить таймер", "timer_set", "info");
+    },
+  },
+  {
+    patterns: [/отмени таймер/i, /стоп таймер/i, /останови таймер/i, /убери таймер/i],
+    action: "timer_cancel",
+    handler: (cmd) => {
+      if (timerCancelAllCallback) {
+        timerCancelAllCallback();
+        return makeResult(cmd, "Все таймеры отменены", "timer_cancel");
+      }
+      return makeResult(cmd, "Нет активных таймеров", "timer_cancel", "info");
     },
   },
   {

@@ -7,6 +7,7 @@ interface OrdoSettings {
   darkTheme: boolean;
   saveHistory: boolean;
   notifications: boolean;
+  backgroundMode: boolean;
 }
 
 const defaultSettings: OrdoSettings = {
@@ -15,6 +16,7 @@ const defaultSettings: OrdoSettings = {
   darkTheme: true,
   saveHistory: true,
   notifications: false,
+  backgroundMode: true,
 };
 
 const SettingsPanel = () => {
@@ -123,6 +125,31 @@ const SettingsPanel = () => {
       <div
         className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
         style={{ animationDelay: "240ms", animationFillMode: "forwards" }}
+        onClick={() => toggleSetting("backgroundMode")}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
+          <Icon name="Shield" size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">Фоновый режим</p>
+          <p className="text-xs text-muted-foreground">Таймеры и задачи работают при свёрнутом браузере</p>
+        </div>
+        <div
+          className={`w-10 h-5 rounded-full transition-colors relative ${
+            settings.backgroundMode ? "bg-cyber-cyan/30" : "bg-secondary"
+          }`}
+        >
+          <div
+            className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+              settings.backgroundMode ? "left-[22px] bg-cyber-cyan" : "left-0.5 bg-muted-foreground"
+            }`}
+          />
+        </div>
+      </div>
+
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
+        style={{ animationDelay: "320ms", animationFillMode: "forwards" }}
       >
         <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
           <Icon name="Globe" size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
@@ -136,7 +163,7 @@ const SettingsPanel = () => {
 
       <div
         className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-destructive/30 transition-all cursor-pointer group"
-        style={{ animationDelay: "320ms", animationFillMode: "forwards" }}
+        style={{ animationDelay: "400ms", animationFillMode: "forwards" }}
         onClick={clearAllData}
       >
         <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-destructive/10 transition-colors shrink-0">
@@ -151,14 +178,14 @@ const SettingsPanel = () => {
 
       <div
         className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 transition-all"
-        style={{ animationDelay: "400ms", animationFillMode: "forwards" }}
+        style={{ animationDelay: "480ms", animationFillMode: "forwards" }}
       >
         <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0">
           <Icon name="Info" size={18} className="text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground">О приложении</p>
-          <p className="text-xs text-muted-foreground">Ордо v1.0 — голосовой ассистент. Работает через Web Speech API браузера</p>
+          <p className="text-xs text-muted-foreground">Ордо v1.1 — голосовой ассистент с фоновым режимом. Web Speech API + Web Workers</p>
         </div>
       </div>
     </div>

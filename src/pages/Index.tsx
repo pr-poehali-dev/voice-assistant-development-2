@@ -5,10 +5,14 @@ import DeviceCard from "@/components/DeviceCard";
 import CommandHistory from "@/components/CommandHistory";
 import SettingsPanel from "@/components/SettingsPanel";
 import SearchPanel from "@/components/SearchPanel";
+import ActiveTimers from "@/components/ActiveTimers";
+import BackgroundIndicator from "@/components/BackgroundIndicator";
 import useSpeechRecognition from "@/hooks/useSpeechRecognition";
 import useSpeechSynthesis from "@/hooks/useSpeechSynthesis";
 import useLocalStorage from "@/hooks/useLocalStorage";
-import { processCommand, CommandResult } from "@/lib/commandEngine";
+import useTimerWorker from "@/hooks/useTimerWorker";
+import useBackgroundMode from "@/hooks/useBackgroundMode";
+import { processCommand, setTimerCallbacks, CommandResult } from "@/lib/commandEngine";
 
 type Tab = "home" | "devices" | "search" | "settings" | "history";
 
@@ -18,6 +22,7 @@ interface OrdoSettings {
   darkTheme: boolean;
   saveHistory: boolean;
   notifications: boolean;
+  backgroundMode: boolean;
 }
 
 const defaultSettings: OrdoSettings = {
@@ -26,6 +31,7 @@ const defaultSettings: OrdoSettings = {
   darkTheme: true,
   saveHistory: true,
   notifications: false,
+  backgroundMode: true,
 };
 
 const devices = [
@@ -52,6 +58,67 @@ const Index = () => {
   } = useSpeechRecognition(settings.language);
 
   const { speak } = useSpeechSynthesis(settings.language);
+
+  // Web Worker таймеры — работают в фоне
+  const { startTimer, cancelTimer, activeTimers, onTimerComplete } = useTimerWorker();
+
+  // Фоновый режим — Wake Lock + Page Visibility
+  const {
+    isBackground,
+    isWakeLockActive,
+    enableWakeLock,
+    isWakeLockSupported,
+  } = useBackgroundMode(settings.backgroundMode);
+
+  // Регистрируем callback для таймеров в commandEngine
+  useEffect(() => {
+    setTimerCallbacks(
+      (duration: number, label: string) => {
+        startTimer(duration, label);
+      },
+      () => {
+        activeTimers.forEach((t) => cancelTimer(t.id));
+      }
+    );
+  }, [startTimer, cancelTimer, activeTimers]);
+
+  // Callback при завершении таймера
+  useEffect(() => {
+    onTimerComplete((id: string, label: string) => {
+      const response = "Таймер на " + label + " завершён!";
+      setLastResponse(response);
+
+      if (settings.voiceResponse) {
+        speak(response);
+      }
+
+      if (settings.saveHistory) {
+        setHistory((prev) => [...prev, {
+          command: "Таймер " + label,
+          response,
+          action: "timer_complete",
+          status: "success",
+          timestamp: Date.now(),
+        }]);
+      }
+
+      setTimeout(() => setLastResponse(""), 5000);
+    });
+  }, [onTimerComplete, settings.voiceResponse, settings.saveHistory, speak, setHistory]);
+
+  // Активируем Wake Lock при включённом фоновом режиме
+  useEffect(() => {
+    if (settings.backgroundMode && isWakeLockSupported) {
+      enableWakeLock();
+    }
+  }, [settings.backgroundMode, isWakeLockSupported, enableWakeLock]);
+
+  // Запрашиваем разрешение на уведомления при включённом фоновом режиме
+  useEffect(() => {
+    if (settings.backgroundMode && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, [settings.backgroundMode]);
 
   const executeCommand = useCallback(
     (text: string) => {
@@ -122,6 +189,11 @@ const Index = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <BackgroundIndicator
+            isBackground={isBackground}
+            isWakeLockActive={isWakeLockActive}
+            activeTimersCount={activeTimers.length}
+          />
           <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/50 border border-border/50">
             <div className={`w-1.5 h-1.5 rounded-full ${isSupported ? "bg-cyber-green animate-pulse" : "bg-destructive"}`} />
             <span className="text-[10px] font-display tracking-wider text-muted-foreground">
@@ -162,6 +234,13 @@ const Index = () => {
               />
             </div>
 
+            {/* Активные таймеры */}
+            {activeTimers.length > 0 && (
+              <div className="w-full mb-6">
+                <ActiveTimers timers={activeTimers} onCancel={cancelTimer} />
+              </div>
+            )}
+
             <div className="w-full space-y-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -179,7 +258,7 @@ const Index = () => {
                   { icon: "Send", label: "Telegram", cmd: "Читай чат" },
                   { icon: "Clock", label: "Время", cmd: "Который час" },
                   { icon: "Calendar", label: "Дата", cmd: "Какая сегодня дата" },
-                  { icon: "CloudSun", label: "Погода", cmd: "Погода" },
+                  { icon: "Timer", label: "Таймер", cmd: "Таймер 5 минут" },
                   { icon: "Map", label: "Карты", cmd: "Открой карты" },
                 ].map((item, i) => (
                   <button
@@ -194,7 +273,7 @@ const Index = () => {
                       className="text-muted-foreground group-hover:text-cyber-cyan transition-colors"
                     />
                     <span className="text-xs text-foreground font-medium">{item.label}</span>
-                    <span className="text-[9px] text-muted-foreground/50 hidden md:block">«{item.cmd}»</span>
+                    <span className="text-[9px] text-muted-foreground/50 hidden md:block">{"\u00AB" + item.cmd + "\u00BB"}</span>
                   </button>
                 ))}
               </div>
@@ -229,6 +308,38 @@ const Index = () => {
               {devices.map((device, i) => (
                 <DeviceCard key={device.name} {...device} delay={i * 80} />
               ))}
+            </div>
+
+            {/* Статус фонового режима */}
+            <div className="mt-6 p-4 rounded-lg bg-card/30 border border-border/50">
+              <div className="flex items-center gap-3 mb-3">
+                <Icon name="Shield" size={18} className={settings.backgroundMode ? "text-cyber-green" : "text-muted-foreground"} />
+                <h3 className="text-sm font-medium text-foreground">Фоновый режим</h3>
+              </div>
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between">
+                  <span>Web Worker (таймеры)</span>
+                  <span className="text-cyber-green font-display tracking-wider">ACTIVE</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Wake Lock (экран)</span>
+                  <span className={isWakeLockActive ? "text-cyber-green font-display tracking-wider" : "text-muted-foreground/50 font-display tracking-wider"}>
+                    {isWakeLockActive ? "ACTIVE" : isWakeLockSupported ? "STANDBY" : "N/A"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Notifications</span>
+                  <span className={"Notification" in window && Notification.permission === "granted" ? "text-cyber-green font-display tracking-wider" : "text-yellow-500 font-display tracking-wider"}>
+                    {"Notification" in window ? Notification.permission.toUpperCase() : "N/A"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Активные таймеры</span>
+                  <span className={activeTimers.length > 0 ? "text-cyber-cyan font-display tracking-wider" : "text-muted-foreground/50 font-display tracking-wider"}>
+                    {activeTimers.length}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -269,7 +380,7 @@ const Index = () => {
                   История
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {history.length > 0 ? `${history.length} команд выполнено` : "Все голосовые команды"}
+                  {history.length > 0 ? history.length + " команд выполнено" : "Все голосовые команды"}
                 </p>
               </div>
               {history.length > 0 && (
