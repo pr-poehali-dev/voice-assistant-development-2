@@ -1,29 +1,99 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import VoiceOrb from "@/components/VoiceOrb";
 import DeviceCard from "@/components/DeviceCard";
 import CommandHistory from "@/components/CommandHistory";
 import SettingsPanel from "@/components/SettingsPanel";
 import SearchPanel from "@/components/SearchPanel";
+import useSpeechRecognition from "@/hooks/useSpeechRecognition";
+import useSpeechSynthesis from "@/hooks/useSpeechSynthesis";
+import useLocalStorage from "@/hooks/useLocalStorage";
+import { processCommand, CommandResult } from "@/lib/commandEngine";
 
 type Tab = "home" | "devices" | "search" | "settings" | "history";
 
+interface OrdoSettings {
+  voiceResponse: boolean;
+  language: string;
+  darkTheme: boolean;
+  saveHistory: boolean;
+  notifications: boolean;
+}
+
+const defaultSettings: OrdoSettings = {
+  voiceResponse: true,
+  language: "ru-RU",
+  darkTheme: true,
+  saveHistory: true,
+  notifications: false,
+};
+
 const devices = [
-  { name: "Samsung Galaxy", icon: "Smartphone", status: "active" as const, type: "Android 14" },
-  { name: "Desktop PC", icon: "Monitor", status: "online" as const, type: "Windows 11" },
-  { name: "Наушники", icon: "Headphones", status: "online" as const, type: "Bluetooth" },
-  { name: "Умная колонка", icon: "Speaker", status: "offline" as const, type: "Wi-Fi" },
-  { name: "Планшет", icon: "Tablet", status: "online" as const, type: "Android 13" },
-  { name: "ТВ Samsung", icon: "Tv", status: "offline" as const, type: "Smart TV" },
+  { name: "Это устройство", icon: "Monitor", status: "active" as const, type: navigator.userAgent.includes("Android") ? "Android" : navigator.userAgent.includes("Win") ? "Windows" : "Браузер" },
+  { name: "Микрофон", icon: "Mic", status: "online" as const, type: "Web Speech API" },
+  { name: "Динамик", icon: "Volume2", status: "online" as const, type: "Speech Synthesis" },
+  { name: "Хранилище", icon: "Database", status: "online" as const, type: "LocalStorage" },
 ];
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>("home");
-  const [isListening, setIsListening] = useState(false);
+  const [lastResponse, setLastResponse] = useState("");
+  const [settings] = useLocalStorage<OrdoSettings>("ordo-settings", defaultSettings);
+  const [history, setHistory] = useLocalStorage<CommandResult[]>("ordo-history", []);
+
+  const {
+    isListening,
+    transcript,
+    interimTranscript,
+    startListening,
+    stopListening,
+    isSupported,
+    error,
+  } = useSpeechRecognition(settings.language);
+
+  const { speak } = useSpeechSynthesis(settings.language);
+
+  const executeCommand = useCallback(
+    (text: string) => {
+      const result = processCommand(text);
+
+      if (settings.saveHistory) {
+        setHistory((prev) => [...prev, result]);
+      }
+
+      setLastResponse(result.response);
+
+      if (settings.voiceResponse) {
+        speak(result.response);
+      }
+
+      setTimeout(() => setLastResponse(""), 5000);
+    },
+    [settings.voiceResponse, settings.saveHistory, speak, setHistory]
+  );
+
+  useEffect(() => {
+    if (transcript && !isListening) {
+      executeCommand(transcript);
+    }
+  }, [transcript, isListening, executeCommand]);
+
+  const handleOrbToggle = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      setLastResponse("");
+      startListening();
+    }
+  };
+
+  const handleQuickCommand = (cmd: string) => {
+    executeCommand(cmd);
+  };
 
   const tabs: { id: Tab; icon: string; label: string }[] = [
     { id: "home", icon: "Mic", label: "Ордо" },
-    { id: "devices", icon: "Cpu", label: "Устройства" },
+    { id: "devices", icon: "Cpu", label: "Модули" },
     { id: "search", icon: "Search", label: "Поиск" },
     { id: "settings", icon: "Settings", label: "Настройки" },
     { id: "history", icon: "Clock", label: "История" },
@@ -53,22 +123,42 @@ const Index = () => {
 
         <div className="flex items-center gap-2">
           <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/50 border border-border/50">
-            <div className="w-1.5 h-1.5 rounded-full bg-cyber-green animate-pulse" />
-            <span className="text-[10px] font-display tracking-wider text-muted-foreground">ONLINE</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${isSupported ? "bg-cyber-green animate-pulse" : "bg-destructive"}`} />
+            <span className="text-[10px] font-display tracking-wider text-muted-foreground">
+              {isSupported ? (isListening ? "LISTENING" : "READY") : "NO MIC"}
+            </span>
           </div>
-          <button className="w-8 h-8 rounded-lg bg-card/50 border border-border/50 flex items-center justify-center hover:border-cyber-cyan/30 transition-colors">
-            <Icon name="Bell" size={16} className="text-muted-foreground" />
-          </button>
+          {history.length > 0 && (
+            <button
+              onClick={() => setActiveTab("history")}
+              className="relative w-8 h-8 rounded-lg bg-card/50 border border-border/50 flex items-center justify-center hover:border-cyber-cyan/30 transition-colors"
+            >
+              <Icon name="Bell" size={16} className="text-muted-foreground" />
+              <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyber-cyan text-[8px] text-background font-bold flex items-center justify-center">
+                {history.length > 99 ? "99" : history.length}
+              </div>
+            </button>
+          )}
         </div>
       </header>
 
       <main className="relative z-10 max-w-2xl mx-auto px-4 pb-24 pt-6">
         {activeTab === "home" && (
           <div className="flex flex-col items-center">
-            <div className="mt-8 md:mt-16 mb-10">
+            {!isSupported && (
+              <div className="w-full mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                Ваш браузер не поддерживает распознавание речи. Используйте Google Chrome
+              </div>
+            )}
+
+            <div className="mt-4 md:mt-10 mb-10">
               <VoiceOrb
                 isListening={isListening}
-                onToggle={() => setIsListening(!isListening)}
+                onToggle={handleOrbToggle}
+                transcript={transcript}
+                interimTranscript={interimTranscript}
+                error={error}
+                lastResponse={lastResponse}
               />
             </div>
 
@@ -85,13 +175,18 @@ const Index = () => {
                 {[
                   { icon: "Music", label: "Музыка", cmd: "Включи музыку" },
                   { icon: "Globe", label: "Браузер", cmd: "Открой браузер" },
-                  { icon: "Video", label: "Видео", cmd: "Запусти YouTube" },
-                  { icon: "MessageCircle", label: "Сообщения", cmd: "Читай чат" },
+                  { icon: "Play", label: "YouTube", cmd: "Запусти YouTube" },
+                  { icon: "Send", label: "Telegram", cmd: "Читай чат" },
+                  { icon: "Clock", label: "Время", cmd: "Который час" },
+                  { icon: "Calendar", label: "Дата", cmd: "Какая сегодня дата" },
+                  { icon: "CloudSun", label: "Погода", cmd: "Погода" },
+                  { icon: "Map", label: "Карты", cmd: "Открой карты" },
                 ].map((item, i) => (
                   <button
                     key={item.label}
-                    className="animate-fade-in-up opacity-0 flex flex-col items-center gap-2 p-4 rounded-xl bg-card/30 border border-border/50 hover:border-cyber-cyan/30 hover:bg-card/50 transition-all group"
-                    style={{ animationDelay: `${400 + i * 100}ms`, animationFillMode: "forwards" }}
+                    onClick={() => handleQuickCommand(item.cmd)}
+                    className="animate-fade-in-up opacity-0 flex flex-col items-center gap-2 p-4 rounded-xl bg-card/30 border border-border/50 hover:border-cyber-cyan/30 hover:bg-card/50 transition-all group active:scale-95"
+                    style={{ animationDelay: `${200 + i * 60}ms`, animationFillMode: "forwards" }}
                   >
                     <Icon
                       name={item.icon}
@@ -99,22 +194,24 @@ const Index = () => {
                       className="text-muted-foreground group-hover:text-cyber-cyan transition-colors"
                     />
                     <span className="text-xs text-foreground font-medium">{item.label}</span>
-                    <span className="text-[9px] text-muted-foreground/50">«{item.cmd}»</span>
+                    <span className="text-[9px] text-muted-foreground/50 hidden md:block">«{item.cmd}»</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="w-full mt-8 space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
-                <span className="text-[10px] font-display tracking-[0.3em] text-muted-foreground uppercase">
-                  Последние команды
-                </span>
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+            {history.length > 0 && (
+              <div className="w-full mt-8 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+                  <span className="text-[10px] font-display tracking-[0.3em] text-muted-foreground uppercase">
+                    Последние команды
+                  </span>
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+                </div>
+                <CommandHistory limit={3} />
               </div>
-              <CommandHistory />
-            </div>
+            )}
           </div>
         )}
 
@@ -122,10 +219,10 @@ const Index = () => {
           <div>
             <div className="mb-6">
               <h2 className="font-display text-lg font-bold tracking-wider text-foreground">
-                Устройства
+                Модули
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Управление подключёнными устройствами
+                Компоненты ассистента на этом устройстве
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -166,13 +263,28 @@ const Index = () => {
 
         {activeTab === "history" && (
           <div>
-            <div className="mb-6">
-              <h2 className="font-display text-lg font-bold tracking-wider text-foreground">
-                История
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Все голосовые команды
-              </p>
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="font-display text-lg font-bold tracking-wider text-foreground">
+                  История
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {history.length > 0 ? `${history.length} команд выполнено` : "Все голосовые команды"}
+                </p>
+              </div>
+              {history.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm("Очистить историю?")) {
+                      setHistory([]);
+                    }
+                  }}
+                  className="text-xs text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
+                >
+                  <Icon name="Trash2" size={12} />
+                  Очистить
+                </button>
+              )}
             </div>
             <CommandHistory />
           </div>
@@ -198,11 +310,7 @@ const Index = () => {
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-cyber-cyan" />
                   )}
                 </div>
-                <span
-                  className={`text-[9px] tracking-wider ${
-                    activeTab === tab.id ? "font-display" : ""
-                  }`}
-                >
+                <span className="text-[9px] font-display tracking-wider uppercase">
                   {tab.label}
                 </span>
               </button>

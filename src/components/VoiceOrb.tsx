@@ -1,19 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface VoiceOrbProps {
   isListening: boolean;
   onToggle: () => void;
+  transcript?: string;
+  interimTranscript?: string;
+  error?: string | null;
+  lastResponse?: string;
 }
 
-const VoiceOrb = ({ isListening, onToggle }: VoiceOrbProps) => {
-  const [isHovered, setIsHovered] = useState(false);
+const VoiceOrb = ({ isListening, onToggle, transcript, interimTranscript, error, lastResponse }: VoiceOrbProps) => {
+  const [displayText, setDisplayText] = useState("");
+
+  useEffect(() => {
+    if (error) {
+      setDisplayText(error);
+    } else if (lastResponse) {
+      setDisplayText(lastResponse);
+    } else if (interimTranscript) {
+      setDisplayText(interimTranscript);
+    } else if (transcript) {
+      setDisplayText(transcript);
+    } else if (isListening) {
+      setDisplayText("");
+    } else {
+      setDisplayText("");
+    }
+  }, [isListening, transcript, interimTranscript, error, lastResponse]);
 
   return (
     <div className="flex flex-col items-center gap-6">
       <button
         onClick={onToggle}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         className="relative group cursor-pointer"
       >
         <div
@@ -93,19 +111,30 @@ const VoiceOrb = ({ isListening, onToggle }: VoiceOrbProps) => {
         </div>
       </button>
 
-      <div className="text-center">
+      <div className="text-center max-w-sm">
         <p
           className={`font-display text-sm tracking-[0.3em] uppercase transition-all duration-500 ${
             isListening
               ? "text-cyber-cyan text-glow-cyan"
+              : error
+              ? "text-destructive"
               : "text-muted-foreground"
           }`}
         >
-          {isListening ? "Слушаю..." : "Нажмите для активации"}
+          {isListening ? "Слушаю..." : error ? "Ошибка" : "Нажмите для активации"}
         </p>
-        {!isListening && (
+
+        {displayText && (
+          <p className={`text-sm mt-2 font-body transition-all ${
+            error ? "text-destructive/80" : "text-foreground/80"
+          }`}>
+            {displayText}
+          </p>
+        )}
+
+        {!isListening && !displayText && !error && (
           <p className="text-xs text-muted-foreground/50 mt-2 font-body">
-            или скажите «Ордо — внимание»
+            Нажмите на кнопку и произнесите команду
           </p>
         )}
       </div>

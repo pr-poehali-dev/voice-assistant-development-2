@@ -1,95 +1,166 @@
 import Icon from "@/components/ui/icon";
+import useLocalStorage from "@/hooks/useLocalStorage";
 
-interface SettingItemProps {
-  icon: string;
-  label: string;
-  description: string;
-  value?: string;
-  toggle?: boolean;
-  enabled?: boolean;
-  delay?: number;
+interface OrdoSettings {
+  voiceResponse: boolean;
+  language: string;
+  darkTheme: boolean;
+  saveHistory: boolean;
+  notifications: boolean;
 }
 
-const SettingItem = ({ icon, label, description, value, toggle, enabled = true, delay = 0 }: SettingItemProps) => (
-  <div
-    className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
-    style={{ animationDelay: `${delay}ms`, animationFillMode: "forwards" }}
-  >
-    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
-      <Icon name={icon} size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
-    </div>
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-medium text-foreground">{label}</p>
-      <p className="text-xs text-muted-foreground">{description}</p>
-    </div>
-    {toggle && (
-      <div
-        className={`w-10 h-5 rounded-full transition-colors relative ${
-          enabled ? "bg-cyber-cyan/30" : "bg-secondary"
-        }`}
-      >
-        <div
-          className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
-            enabled ? "left-[22px] bg-cyber-cyan" : "left-0.5 bg-muted-foreground"
-          }`}
-        />
-      </div>
-    )}
-    {value && (
-      <span className="text-xs text-muted-foreground font-display tracking-wider">{value}</span>
-    )}
-  </div>
-);
+const defaultSettings: OrdoSettings = {
+  voiceResponse: true,
+  language: "ru-RU",
+  darkTheme: true,
+  saveHistory: true,
+  notifications: false,
+};
 
 const SettingsPanel = () => {
+  const [settings, setSettings] = useLocalStorage<OrdoSettings>("ordo-settings", defaultSettings);
+
+  const toggleSetting = (key: keyof OrdoSettings) => {
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const requestNotifications = () => {
+    if ("Notification" in window) {
+      Notification.requestPermission().then((perm) => {
+        setSettings((prev) => ({ ...prev, notifications: perm === "granted" }));
+      });
+    }
+  };
+
+  const clearAllData = () => {
+    if (confirm("Удалить всю историю команд и заметки?")) {
+      localStorage.removeItem("ordo-history");
+      localStorage.removeItem("ordo-notes");
+      window.dispatchEvent(new CustomEvent("ordo-storage", { detail: { key: "ordo-history" } }));
+    }
+  };
+
   return (
     <div className="space-y-2">
-      <SettingItem
-        icon="Mic"
-        label="Голосовая активация"
-        description="Активация фразой «Ордо — внимание»"
-        toggle
-        enabled={true}
-        delay={0}
-      />
-      <SettingItem
-        icon="Volume2"
-        label="Голос ответа"
-        description="Выбор голоса ассистента"
-        value="Алиса"
-        delay={80}
-      />
-      <SettingItem
-        icon="Globe"
-        label="Язык"
-        description="Язык распознавания речи"
-        value="RU"
-        delay={160}
-      />
-      <SettingItem
-        icon="Moon"
-        label="Тёмная тема"
-        description="Кибер-интерфейс"
-        toggle
-        enabled={true}
-        delay={240}
-      />
-      <SettingItem
-        icon="Smartphone"
-        label="Кроссплатформенность"
-        description="Синхронизация Android и Windows"
-        toggle
-        enabled={true}
-        delay={320}
-      />
-      <SettingItem
-        icon="Shield"
-        label="Приватность"
-        description="Обработка данных на устройстве"
-        toggle
-        enabled={false}
-        delay={400}
-      />
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
+        style={{ animationDelay: "0ms", animationFillMode: "forwards" }}
+        onClick={() => toggleSetting("voiceResponse")}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
+          <Icon name="Volume2" size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">Голосовой ответ</p>
+          <p className="text-xs text-muted-foreground">Ордо озвучивает результат команды</p>
+        </div>
+        <div
+          className={`w-10 h-5 rounded-full transition-colors relative ${
+            settings.voiceResponse ? "bg-cyber-cyan/30" : "bg-secondary"
+          }`}
+        >
+          <div
+            className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+              settings.voiceResponse ? "left-[22px] bg-cyber-cyan" : "left-0.5 bg-muted-foreground"
+            }`}
+          />
+        </div>
+      </div>
+
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
+        style={{ animationDelay: "80ms", animationFillMode: "forwards" }}
+        onClick={() => toggleSetting("saveHistory")}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
+          <Icon name="History" size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">Сохранять историю</p>
+          <p className="text-xs text-muted-foreground">Запоминать выполненные команды</p>
+        </div>
+        <div
+          className={`w-10 h-5 rounded-full transition-colors relative ${
+            settings.saveHistory ? "bg-cyber-cyan/30" : "bg-secondary"
+          }`}
+        >
+          <div
+            className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+              settings.saveHistory ? "left-[22px] bg-cyber-cyan" : "left-0.5 bg-muted-foreground"
+            }`}
+          />
+        </div>
+      </div>
+
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
+        style={{ animationDelay: "160ms", animationFillMode: "forwards" }}
+        onClick={() => {
+          requestNotifications();
+          toggleSetting("notifications");
+        }}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
+          <Icon name="Bell" size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">Уведомления</p>
+          <p className="text-xs text-muted-foreground">Оповещения о таймерах и событиях</p>
+        </div>
+        <div
+          className={`w-10 h-5 rounded-full transition-colors relative ${
+            settings.notifications ? "bg-cyber-cyan/30" : "bg-secondary"
+          }`}
+        >
+          <div
+            className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+              settings.notifications ? "left-[22px] bg-cyber-cyan" : "left-0.5 bg-muted-foreground"
+            }`}
+          />
+        </div>
+      </div>
+
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
+        style={{ animationDelay: "240ms", animationFillMode: "forwards" }}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
+          <Icon name="Globe" size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">Язык</p>
+          <p className="text-xs text-muted-foreground">Язык распознавания речи</p>
+        </div>
+        <span className="text-xs text-cyber-cyan font-display tracking-wider">RU</span>
+      </div>
+
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-destructive/30 transition-all cursor-pointer group"
+        style={{ animationDelay: "320ms", animationFillMode: "forwards" }}
+        onClick={clearAllData}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-destructive/10 transition-colors shrink-0">
+          <Icon name="Trash2" size={18} className="text-muted-foreground group-hover:text-destructive transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">Очистить данные</p>
+          <p className="text-xs text-muted-foreground">Удалить историю команд и заметки</p>
+        </div>
+        <Icon name="ChevronRight" size={14} className="text-muted-foreground/30" />
+      </div>
+
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 transition-all"
+        style={{ animationDelay: "400ms", animationFillMode: "forwards" }}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+          <Icon name="Info" size={18} className="text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">О приложении</p>
+          <p className="text-xs text-muted-foreground">Ордо v1.0 — голосовой ассистент. Работает через Web Speech API браузера</p>
+        </div>
+      </div>
     </div>
   );
 };
