@@ -24,6 +24,9 @@ const makeResult = (command: string, response: string, action: string, status: C
 let timerStartCallback: ((duration: number, label: string) => void) | null = null;
 let timerCancelAllCallback: (() => void) | null = null;
 
+// Callback для ИИ-запросов
+let aiCallback: ((message: string) => Promise<string>) | null = null;
+
 export const setTimerCallbacks = (
   onStart: (duration: number, label: string) => void,
   onCancelAll: () => void
@@ -32,13 +35,27 @@ export const setTimerCallbacks = (
   timerCancelAllCallback = onCancelAll;
 };
 
+export const setAICallback = (callback: (message: string) => Promise<string>) => {
+  aiCallback = callback;
+};
+
 const commands: CommandPattern[] = [
   {
-    patterns: [/включи музыку/i, /играй музыку/i, /запусти музыку/i, /поставь музыку/i],
+    patterns: [/включи музыку/i, /играй музыку/i, /запусти музыку/i, /поставь музыку/i, /вк музык/i, /музыка вк/i],
     action: "music_play",
     handler: (cmd) => {
-      window.open("https://music.youtube.com", "_blank");
-      return makeResult(cmd, "Открываю YouTube Music", "music_play");
+      window.open("https://vk.com/audio", "_blank");
+      return makeResult(cmd, "Открываю VK Музыку", "music_play");
+    },
+  },
+  {
+    patterns: [/включи (.+) на вк/i, /поставь (.+) на вк/i, /послушать (.+)/i],
+    action: "music_search",
+    handler: (cmd) => {
+      const match = cmd.match(/(?:включи|поставь|послушать)\s+(.+?)(?:\s+на вк)?$/i);
+      const query = match ? match[1] : cmd;
+      window.open("https://vk.com/audio?q=" + encodeURIComponent(query), "_blank");
+      return makeResult(cmd, "Ищу в VK Музыке: " + query, "music_search");
     },
   },
   {
@@ -264,6 +281,39 @@ const commands: CommandPattern[] = [
     },
   },
   {
+    patterns: [/переведи (.+)/i, /перевод (.+)/i, /как будет (.+) по-английски/i, /как (.+) на английском/i],
+    action: "translate",
+    handler: (cmd) => {
+      const match = cmd.match(/(?:переведи|перевод|как будет|как)\s+(.+?)(?:\s+по-английски|\s+на английском)?$/i);
+      const text = match ? match[1] : cmd;
+      window.open("https://translate.google.com/?sl=auto&tl=en&text=" + encodeURIComponent(text), "_blank");
+      return makeResult(cmd, "Открываю перевод: " + text, "translate");
+    },
+  },
+  {
+    patterns: [/яркость (.+)/i, /сделай ярче/i, /сделай темнее/i, /увеличь яркость/i, /уменьши яркость/i],
+    action: "brightness",
+    handler: (cmd) => {
+      const match = cmd.match(/(\d+)/);
+      let level = 100;
+      if (/темнее/i.test(cmd)) level = 60;
+      else if (/ярче/i.test(cmd)) level = 100;
+      else if (match) level = Math.min(100, Math.max(20, parseInt(match[1])));
+
+      document.documentElement.style.filter = "brightness(" + (level / 100) + ")";
+      return makeResult(cmd, "Яркость экрана: " + level + "%", "brightness");
+    },
+  },
+  {
+    patterns: [/курс (.+)/i, /курс доллара/i, /курс евро/i, /сколько стоит доллар/i, /сколько стоит евро/i],
+    action: "exchange_rate",
+    handler: (cmd) => {
+      const query = cmd.replace(/курс/i, "").trim() || "доллар евро рубль";
+      window.open("https://www.google.com/search?q=курс+" + encodeURIComponent(query), "_blank");
+      return makeResult(cmd, "Открываю курс валют", "exchange_rate");
+    },
+  },
+  {
     patterns: [/стоп/i, /хватит/i, /замолчи/i, /тихо/i],
     action: "stop",
     handler: (cmd) => {
@@ -284,16 +334,26 @@ export const processCommand = (input: string): CommandResult => {
     }
   }
 
+  // Если команда не распознана — отправляем в ИИ
   return makeResult(
     input.trim(),
-    `Не понял команду. Попробуйте: «Включи музыку», «Найди...», «Который час», «Заметка...»`,
-    "unknown",
+    "__AI_QUERY__",
+    "ai_query",
     "info"
   );
 };
 
+export const processAICommand = async (input: string): Promise<CommandResult> => {
+  if (!aiCallback) {
+    return makeResult(input, "ИИ не подключён. Попробуйте стандартные команды.", "ai_error", "error");
+  }
+  const response = await aiCallback(input);
+  return makeResult(input, response, "ai_response", "success");
+};
+
 export const getAvailableCommands = (): string[] => [
-  "Включи музыку",
+  "Включи музыку (VK)",
+  "Включи [песня] на VK",
   "Открой браузер",
   "Запусти YouTube",
   "Открой Телеграм",
@@ -305,9 +365,11 @@ export const getAvailableCommands = (): string[] => [
   "Заметка [текст]",
   "Покажи заметки",
   "Таймер 5 минут",
-  "Открой камеру",
+  "Переведи [текст]",
+  "Яркость 70%",
+  "Курс доллара",
   "Открой карты",
   "Открой ВК",
   "Очисти историю",
-  "Привет / Кто ты",
+  "Любой вопрос — ответит ИИ",
 ];

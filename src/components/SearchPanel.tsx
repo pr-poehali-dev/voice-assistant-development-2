@@ -12,13 +12,13 @@ interface AppItem {
 }
 
 const apps: AppItem[] = [
+  { name: "VK Музыка", icon: "Music", category: "Музыка", command: "Включи музыку", url: "https://vk.com/audio" },
   { name: "YouTube", icon: "Play", category: "Видео", command: "Запусти YouTube", url: "https://www.youtube.com" },
   { name: "Telegram", icon: "Send", category: "Мессенджер", command: "Открой Телеграм", url: "https://web.telegram.org" },
-  { name: "YouTube Music", icon: "Music", category: "Музыка", command: "Включи музыку", url: "https://music.youtube.com" },
   { name: "Google", icon: "Globe", category: "Браузер", command: "Открой браузер", url: "https://www.google.com" },
   { name: "Google Карты", icon: "Map", category: "Навигация", command: "Открой карты", url: "https://maps.google.com" },
   { name: "ВКонтакте", icon: "Users", category: "Соцсети", command: "Открой ВК", url: "https://vk.com" },
-  { name: "Калькулятор", icon: "Calculator", category: "Утилиты", command: "Калькулятор" },
+  { name: "Переводчик", icon: "Languages", category: "Утилиты", command: "Переведи привет", url: "https://translate.google.com" },
   { name: "Погода", icon: "CloudSun", category: "Информация", command: "Погода" },
 ];
 

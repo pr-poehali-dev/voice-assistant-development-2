@@ -8,6 +8,7 @@ interface OrdoSettings {
   saveHistory: boolean;
   notifications: boolean;
   backgroundMode: boolean;
+  wakeWordEnabled: boolean;
 }
 
 const defaultSettings: OrdoSettings = {
@@ -17,6 +18,7 @@ const defaultSettings: OrdoSettings = {
   saveHistory: true,
   notifications: false,
   backgroundMode: true,
+  wakeWordEnabled: true,
 };
 
 const SettingsPanel = () => {
@@ -72,6 +74,31 @@ const SettingsPanel = () => {
       <div
         className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
         style={{ animationDelay: "80ms", animationFillMode: "forwards" }}
+        onClick={() => toggleSetting("wakeWordEnabled")}
+      >
+        <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
+          <Icon name="Ear" size={18} className="text-muted-foreground group-hover:text-cyber-purple transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground">Голосовая активация</p>
+          <p className="text-xs text-muted-foreground">Скажите «Ордо, внимание» для запуска</p>
+        </div>
+        <div
+          className={`w-10 h-5 rounded-full transition-colors relative ${
+            settings.wakeWordEnabled ? "bg-cyber-cyan/30" : "bg-secondary"
+          }`}
+        >
+          <div
+            className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${
+              settings.wakeWordEnabled ? "left-[22px] bg-cyber-cyan" : "left-0.5 bg-muted-foreground"
+            }`}
+          />
+        </div>
+      </div>
+
+      <div
+        className="animate-fade-in-up opacity-0 flex items-center gap-4 p-3 rounded-lg bg-card/30 border border-border/50 hover:border-cyber-purple/30 transition-all cursor-pointer group"
+        style={{ animationDelay: "160ms", animationFillMode: "forwards" }}
         onClick={() => toggleSetting("saveHistory")}
       >
         <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center group-hover:bg-cyber-purple/10 transition-colors shrink-0">
@@ -185,7 +212,7 @@ const SettingsPanel = () => {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground">О приложении</p>
-          <p className="text-xs text-muted-foreground">Ордо v1.1 — голосовой ассистент с фоновым режимом. Web Speech API + Web Workers</p>
+          <p className="text-xs text-muted-foreground">Ордо v2.0 — голосовой ассистент с ИИ. GPT-4o + Web Speech API + Wake Word</p>
         </div>
       </div>
     </div>
